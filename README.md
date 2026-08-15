@@ -74,7 +74,7 @@ ScreenCatch can *optionally* use a **local** tiny model to suggest an **auto-tit
 
 ## Current status / milestones
 
-🚧 **Early scaffolding.** Docs and backlog are in place; implementation is issue-by-issue.
+🚧 **In active implementation.** Core capture bootstrap now lives in `src/ScreenCatch.Core` (interfaces, descriptor validation, geometry/crop pipeline, synthetic capture harness). Native Windows/macOS frame grabbers and higher milestones remain in progress.
 
 - [ ] M1 — Core capture + encode engine (region/window/screen → MP4/WebM)
 - [ ] M2 — GIF/animated-WebP export (two-pass palette) + trim
