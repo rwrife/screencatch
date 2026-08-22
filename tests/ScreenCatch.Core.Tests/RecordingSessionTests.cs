@@ -78,6 +78,37 @@ public sealed class RecordingSessionTests
         Assert.Equal(0, fakeEncoder.EncodeCalls);
     }
 
+    [Fact]
+    public async Task CancelAsync_DuringEncoding_CancelsEncoder_AndKeepsSessionCanceled()
+    {
+        var fakeCaptureSource = new FakeCaptureSource(CreateFrames(count: 3, width: 8, height: 6));
+        var blockingEncoder = new BlockingVideoEncoder();
+
+        await using var session = new RecordingSession(fakeCaptureSource, blockingEncoder);
+
+        var request = new RecordingSessionRequest(
+            captureRequest: new CaptureRequest(new FullScreenCaptureDescriptor(), targetFps: 30, maxFrames: 3),
+            videoOptions: new VideoEncodeOptions("/tmp/demo.mp4", VideoOutputFormat.Mp4, framesPerSecond: 30));
+
+        await session.StartAsync(request);
+        var stopTask = session.StopAsync();
+        await blockingEncoder.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        try
+        {
+            await session.CancelAsync();
+            Assert.True(blockingEncoder.CancellationToken.IsCancellationRequested);
+        }
+        finally
+        {
+            blockingEncoder.Release.TrySetResult();
+        }
+
+        var result = await stopTask;
+        Assert.Equal(RecordingSessionState.Canceled, result.FinalState);
+        Assert.Equal(RecordingSessionState.Canceled, session.State);
+    }
+
     private static IReadOnlyList<CaptureFrame> CreateFrames(int count, int width, int height)
     {
         var frames = new List<CaptureFrame>(capacity: count);
@@ -151,6 +182,35 @@ public sealed class RecordingSessionTests
             LastRequest = request;
             Progress?.Invoke(this, new VideoEncoderProgress(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1), 100));
             return Task.FromResult(_result);
+        }
+    }
+
+    private sealed class BlockingVideoEncoder : IVideoEncoder
+    {
+        public event EventHandler<VideoEncoderProgress>? Progress;
+
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public CancellationToken CancellationToken { get; private set; }
+
+        public async Task<VideoEncodeResult> EncodeAsync(
+            VideoEncodeRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            CancellationToken = cancellationToken;
+            Started.TrySetResult();
+            await Release.Task;
+
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return VideoEncodeResult.Failure(
+                    new VideoEncodeError(VideoEncodeErrorCode.Canceled, "Encoding was canceled."));
+            }
+
+            Progress?.Invoke(this, new VideoEncoderProgress(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1), 100));
+            return VideoEncodeResult.Success(request.Options.OutputPath);
         }
     }
 

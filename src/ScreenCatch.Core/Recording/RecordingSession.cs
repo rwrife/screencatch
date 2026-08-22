@@ -10,6 +10,7 @@ public sealed class RecordingSession : IRecordingSession
     private readonly object _sync = new();
 
     private RecordingSessionRequest? _request;
+    private CancellationTokenSource? _sessionCancellation;
     private bool _disposed;
 
     public RecordingSession(
@@ -41,6 +42,8 @@ public sealed class RecordingSession : IRecordingSession
                 throw new InvalidOperationException("Recording session is already active.");
             }
 
+            _sessionCancellation?.Dispose();
+            _sessionCancellation = new CancellationTokenSource();
             _request = request;
             State = RecordingSessionState.Running;
         }
@@ -59,6 +62,7 @@ public sealed class RecordingSession : IRecordingSession
         ThrowIfDisposed();
 
         RecordingSessionRequest request;
+        CancellationToken sessionCancellationToken;
         lock (_sync)
         {
             if (_request is null)
@@ -73,6 +77,7 @@ public sealed class RecordingSession : IRecordingSession
 
             State = RecordingSessionState.Stopping;
             request = _request;
+            sessionCancellationToken = _sessionCancellation?.Token ?? CancellationToken.None;
         }
 
         Progress?.Invoke(this, new RecordingSessionProgress(State));
@@ -93,15 +98,21 @@ public sealed class RecordingSession : IRecordingSession
         Progress?.Invoke(this, new RecordingSessionProgress(State));
 
         var encodeRequest = new VideoEncodeRequest(frames, request.VideoOptions, audioTrack);
-        var encodeResult = await _videoEncoder.EncodeAsync(encodeRequest, cancellationToken).ConfigureAwait(false);
+        using var encodeCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            sessionCancellationToken);
+        var encodeResult = await _videoEncoder.EncodeAsync(encodeRequest, encodeCancellation.Token).ConfigureAwait(false);
 
         lock (_sync)
         {
-            State = encodeResult.IsSuccess
-                ? RecordingSessionState.Completed
-                : encodeResult.Error?.Code == VideoEncodeErrorCode.Canceled
-                    ? RecordingSessionState.Canceled
-                    : RecordingSessionState.Failed;
+            if (State != RecordingSessionState.Canceled)
+            {
+                State = encodeResult.IsSuccess
+                    ? RecordingSessionState.Completed
+                    : encodeResult.Error?.Code == VideoEncodeErrorCode.Canceled
+                        ? RecordingSessionState.Canceled
+                        : RecordingSessionState.Failed;
+            }
         }
 
         Progress?.Invoke(this, new RecordingSessionProgress(State));
@@ -152,6 +163,7 @@ public sealed class RecordingSession : IRecordingSession
         }
 
         RecordingSessionState previousState;
+        CancellationTokenSource? sessionCancellation;
         lock (_sync)
         {
             previousState = State;
@@ -161,7 +173,10 @@ public sealed class RecordingSession : IRecordingSession
             }
 
             State = RecordingSessionState.Canceled;
+            sessionCancellation = _sessionCancellation;
         }
+
+        sessionCancellation?.Cancel();
 
         if (previousState is RecordingSessionState.Running or RecordingSessionState.Paused or RecordingSessionState.Stopping)
         {
@@ -185,6 +200,7 @@ public sealed class RecordingSession : IRecordingSession
         await CancelAsync().ConfigureAwait(false);
         await _captureSource.DisposeAsync().ConfigureAwait(false);
         await _audioCapture.DisposeAsync().ConfigureAwait(false);
+        _sessionCancellation?.Dispose();
 
         _disposed = true;
     }
