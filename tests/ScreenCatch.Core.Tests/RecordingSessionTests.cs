@@ -1,4 +1,5 @@
 using ScreenCatch.Core.Capture;
+using ScreenCatch.Core.Cursor;
 using ScreenCatch.Core.Recording;
 
 namespace ScreenCatch.Core.Tests;
@@ -107,6 +108,33 @@ public sealed class RecordingSessionTests
         var result = await stopTask;
         Assert.Equal(RecordingSessionState.Canceled, result.FinalState);
         Assert.Equal(RecordingSessionState.Canceled, session.State);
+    }
+
+    [Fact]
+    public async Task StopAsync_CompositesEnabledCursorEffectsBeforeEncoding()
+    {
+        var fakeCaptureSource = new FakeCaptureSource(CreateFrames(count: 1, width: 64, height: 64));
+        var fakeEncoder = new FakeVideoEncoder(VideoEncodeResult.Success("/tmp/demo.mp4"));
+        await using var session = new RecordingSession(
+            fakeCaptureSource,
+            fakeEncoder,
+            cursorOverlay: new CursorOverlayRenderer(),
+            cursorStateProvider: new FixedCursorStateProvider(new CursorState(32, 32, false)));
+        var request = new RecordingSessionRequest(
+            new CaptureRequest(new FullScreenCaptureDescriptor(), targetFps: 30, maxFrames: 1),
+            new VideoEncodeOptions("/tmp/demo.mp4", VideoOutputFormat.Mp4, framesPerSecond: 30),
+            cursorOverlayOptions: new CursorOverlayOptions(true, false));
+
+        await session.StartAsync(request);
+        await session.StopAsync();
+
+        var encodedFrame = Assert.Single(fakeEncoder.LastRequest!.Frames);
+        var pixelOffset = (18 * encodedFrame.Stride) + (32 * 4);
+        Assert.NotEqual(
+            0,
+            encodedFrame.Buffer[pixelOffset]
+                + encodedFrame.Buffer[pixelOffset + 1]
+                + encodedFrame.Buffer[pixelOffset + 2]);
     }
 
     private static IReadOnlyList<CaptureFrame> CreateFrames(int count, int width, int height)
@@ -244,5 +272,10 @@ public sealed class RecordingSessionTests
         }
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    private sealed class FixedCursorStateProvider(CursorState state) : ICursorStateProvider
+    {
+        public CursorState? GetCurrentState() => state;
     }
 }

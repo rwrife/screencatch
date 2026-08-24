@@ -1,0 +1,22 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="ScreenCatch.App.RegionSelection.RegionSelectionWindow"
+        Title="Select capture region"
+        SystemDecorations="None"
+        ShowInTaskbar="False"
+        Topmost="True"
+        CanResize="False"
+        Background="#66000000"
+        TransparencyLevelHint="Transparent">
+  <Canvas x:Name="SelectionSurface" Background="Transparent">
+    <Border x:Name="SelectionBorder"
+            IsVisible="False"
+            BorderBrush="#5FB3FF"
+            BorderThickness="2"
+            Background="#225FB3FF"
+            CornerRadius="2" />
+    <Border Canvas.Left="20" Canvas.Top="20" Padding="12,8" CornerRadius="8" Background="#DD10141D">
+      <TextBlock Text="Drag to select a recording region • Esc to cancel" Foreground="White" />
+    </Border>
+  </Canvas>
+</Window>
