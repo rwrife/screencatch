@@ -1,0 +1,119 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="ScreenCatch.App.MainWindow"
+        Title="ScreenCatch"
+        Width="1040" Height="720"
+        MinWidth="900" MinHeight="620"
+        Background="#10141D">
+  <Grid RowDefinitions="Auto,*">
+    <Border Padding="24,18" Background="#171D29" BorderBrush="#293247" BorderThickness="0,0,0,1">
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel>
+          <TextBlock Text="ScreenCatch" FontSize="28" FontWeight="SemiBold" />
+          <TextBlock Text="Private screen recording and shareable clips — entirely on this device"
+                     Foreground="#A9B3C7" />
+        </StackPanel>
+        <Border Grid.Column="1" Padding="12,7" CornerRadius="14" Background="#243148" VerticalAlignment="Center">
+          <TextBlock Text="{Binding StatusText}" Foreground="#C7D7F7" />
+        </Border>
+      </Grid>
+    </Border>
+
+    <Grid Grid.Row="1" ColumnDefinitions="390,*" Margin="24" ColumnSpacing="20">
+      <ScrollViewer>
+        <StackPanel Spacing="16">
+          <Border Padding="18" CornerRadius="12" Background="#171D29" BorderBrush="#293247" BorderThickness="1">
+            <StackPanel Spacing="12">
+              <TextBlock Text="Capture source" FontSize="18" FontWeight="SemiBold" />
+              <ComboBox ItemsSource="{Binding CaptureSources}" SelectedItem="{Binding SelectedSource}" />
+
+              <StackPanel IsVisible="{Binding IsMonitorSelected}" Spacing="6">
+                <TextBlock Text="Monitor ID" Foreground="#A9B3C7" />
+                <TextBox Text="{Binding MonitorId}" Watermark="primary" />
+              </StackPanel>
+              <StackPanel IsVisible="{Binding IsWindowSelected}" Spacing="6">
+                <TextBlock Text="Window title" Foreground="#A9B3C7" />
+                <TextBox Text="{Binding WindowTitle}" Watermark="Window title" />
+              </StackPanel>
+              <StackPanel IsVisible="{Binding IsRegionSelected}" Spacing="8">
+                <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="8">
+                  <NumericUpDown Value="{Binding RegionX}" Watermark="X" />
+                  <NumericUpDown Grid.Column="1" Value="{Binding RegionY}" Watermark="Y" />
+                  <NumericUpDown Grid.Row="1" Value="{Binding RegionWidth}" Minimum="1" Watermark="Width" />
+                  <NumericUpDown Grid.Row="1" Grid.Column="1" Value="{Binding RegionHeight}" Minimum="1" Watermark="Height" />
+                </Grid>
+                <Button Content="Select region on screen" HorizontalAlignment="Stretch" Click="SelectRegion_Click" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <Border Padding="18" CornerRadius="12" Background="#171D29" BorderBrush="#293247" BorderThickness="1">
+            <StackPanel Spacing="12">
+              <TextBlock Text="Recording" FontSize="18" FontWeight="SemiBold" />
+              <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="10">
+                <StackPanel>
+                  <TextBlock Text="Format" Foreground="#A9B3C7" />
+                  <ComboBox ItemsSource="{Binding OutputFormats}" SelectedItem="{Binding SelectedFormat}" />
+                </StackPanel>
+                <StackPanel Grid.Column="1">
+                  <TextBlock Text="Frames / second" Foreground="#A9B3C7" />
+                  <ComboBox ItemsSource="{Binding FrameRateOptions}" SelectedItem="{Binding FramesPerSecond}" />
+                </StackPanel>
+                <StackPanel Grid.Row="1">
+                  <TextBlock Text="Quality (CRF)" Foreground="#A9B3C7" />
+                  <NumericUpDown Value="{Binding Quality}" Minimum="0" Maximum="51" />
+                </StackPanel>
+                <StackPanel Grid.Row="1" Grid.Column="1">
+                  <TextBlock Text="Countdown" Foreground="#A9B3C7" />
+                  <ComboBox ItemsSource="{Binding CountdownOptions}" SelectedItem="{Binding CountdownSeconds}" />
+                </StackPanel>
+                <CheckBox Grid.Row="2" Content="Cursor highlight ring" IsChecked="{Binding CursorHighlightEnabled}" />
+                <CheckBox Grid.Row="2" Grid.Column="1" Content="Click ripples" IsChecked="{Binding ClickEffectsEnabled}" />
+              </Grid>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+
+      <Grid Grid.Column="1" RowDefinitions="Auto,*" RowSpacing="16">
+        <Border Padding="20" CornerRadius="12" Background="#171D29" BorderBrush="#293247" BorderThickness="1">
+          <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
+            <Border Width="12" Height="12" CornerRadius="6" Background="#FF5C6C" VerticalAlignment="Center" />
+            <StackPanel Grid.Column="1">
+              <TextBlock Text="Recording HUD" FontSize="18" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding ElapsedText}" FontSize="30" FontFamily="monospace" />
+            </StackPanel>
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+              <Button Content="Record" Command="{Binding StartCommand}" Classes="accent" />
+              <Button Content="{Binding PauseButtonText}" Command="{Binding PauseCommand}" />
+              <Button Content="Stop" Command="{Binding StopCommand}" />
+              <Button Content="Cancel" Command="{Binding CancelCommand}" />
+            </StackPanel>
+          </Grid>
+        </Border>
+
+        <Border Grid.Row="1" Padding="24" CornerRadius="12" Background="#171D29" BorderBrush="#293247" BorderThickness="1">
+          <Grid RowDefinitions="Auto,*,Auto" RowSpacing="16">
+            <StackPanel>
+              <TextBlock Text="Output preview" FontSize="18" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding OutputFileName}" Foreground="#A9B3C7" />
+            </StackPanel>
+            <Border Grid.Row="1" CornerRadius="10" Background="#0C1017" BorderBrush="#293247" BorderThickness="1">
+              <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10">
+                <TextBlock Text="▶" FontSize="52" HorizontalAlignment="Center" Foreground="#6EA8FE" />
+                <TextBlock Text="{Binding OutputPath, FallbackValue='Your completed recording appears here'}"
+                           TextWrapping="Wrap" MaxWidth="420" TextAlignment="Center" Foreground="#A9B3C7" />
+              </StackPanel>
+            </Border>
+            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8"
+                        IsVisible="{Binding HasOutput}">
+              <Button Content="Save as…" Click="SaveAs_Click" />
+              <Button Content="Copy path" Click="CopyPath_Click" />
+              <Button Content="Open location" Click="OpenLocation_Click" />
+            </StackPanel>
+          </Grid>
+        </Border>
+      </Grid>
+    </Grid>
+  </Grid>
+</Window>

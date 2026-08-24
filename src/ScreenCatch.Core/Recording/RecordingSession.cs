@@ -1,4 +1,5 @@
 using ScreenCatch.Core.Capture;
+using ScreenCatch.Core.Cursor;
 
 namespace ScreenCatch.Core.Recording;
 
@@ -7,7 +8,10 @@ public sealed class RecordingSession : IRecordingSession
     private readonly IScreenCaptureSource _captureSource;
     private readonly IVideoEncoder _videoEncoder;
     private readonly IAudioCapture _audioCapture;
+    private readonly ICursorOverlay? _cursorOverlay;
+    private readonly ICursorStateProvider? _cursorStateProvider;
     private readonly object _sync = new();
+    private readonly List<CursorState> _cursorSamples = new();
 
     private RecordingSessionRequest? _request;
     private CancellationTokenSource? _sessionCancellation;
@@ -16,11 +20,15 @@ public sealed class RecordingSession : IRecordingSession
     public RecordingSession(
         IScreenCaptureSource captureSource,
         IVideoEncoder videoEncoder,
-        IAudioCapture? audioCapture = null)
+        IAudioCapture? audioCapture = null,
+        ICursorOverlay? cursorOverlay = null,
+        ICursorStateProvider? cursorStateProvider = null)
     {
         _captureSource = captureSource ?? throw new ArgumentNullException(nameof(captureSource));
         _videoEncoder = videoEncoder ?? throw new ArgumentNullException(nameof(videoEncoder));
         _audioCapture = audioCapture ?? new NullAudioCapture();
+        _cursorOverlay = cursorOverlay;
+        _cursorStateProvider = cursorStateProvider;
 
         _captureSource.Progress += OnCaptureProgress;
         _videoEncoder.Progress += OnEncoderProgress;
@@ -45,6 +53,7 @@ public sealed class RecordingSession : IRecordingSession
             _sessionCancellation?.Dispose();
             _sessionCancellation = new CancellationTokenSource();
             _request = request;
+            _cursorSamples.Clear();
             State = RecordingSessionState.Running;
         }
 
@@ -89,6 +98,8 @@ public sealed class RecordingSession : IRecordingSession
         {
             audioTrack = await _audioCapture.StopAsync(cancellationToken).ConfigureAwait(false);
         }
+
+        ApplyCursorOverlay(frames, request.CursorOverlayOptions);
 
         lock (_sync)
         {
@@ -213,7 +224,42 @@ public sealed class RecordingSession : IRecordingSession
             return;
         }
 
+        var options = _request?.CursorOverlayOptions;
+        if (options?.IsEnabled == true && _cursorOverlay is not null && _cursorStateProvider is not null)
+        {
+            var cursorState = _cursorStateProvider.GetCurrentState();
+            if (cursorState is not null)
+            {
+                lock (_sync)
+                {
+                    _cursorSamples.Add(cursorState.Value);
+                }
+            }
+        }
+
         Progress?.Invoke(this, new RecordingSessionProgress(state, CaptureProgress: progress));
+    }
+
+    private void ApplyCursorOverlay(
+        IReadOnlyList<CaptureFrame> frames,
+        CursorOverlayOptions? options)
+    {
+        if (options?.IsEnabled != true || _cursorOverlay is null)
+        {
+            return;
+        }
+
+        CursorState[] samples;
+        lock (_sync)
+        {
+            samples = _cursorSamples.ToArray();
+        }
+
+        var count = Math.Min(frames.Count, samples.Length);
+        for (var index = 0; index < count; index++)
+        {
+            _cursorOverlay.Apply(frames[index], samples[index], options);
+        }
     }
 
     private void OnEncoderProgress(object? sender, VideoEncoderProgress progress)

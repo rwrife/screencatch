@@ -74,11 +74,11 @@ ScreenCatch can *optionally* use a **local** tiny model to suggest an **auto-tit
 
 ## Current status / milestones
 
-🚧 **In active implementation.** The UI-free core now covers capture, MP4/WebM encoding, optimized two-pass GIF/animated-WebP export, output-size estimation, and stream-copy/frame-accurate trimming. Native Windows/macOS frame grabbers and higher milestones remain in progress.
+🚧 **In active implementation.** The UI-free core covers capture, MP4/WebM encoding, optimized two-pass GIF/animated-WebP export, output-size estimation, stream-copy/frame-accurate trimming, and cursor/click compositing. The shared Avalonia desktop app now provides source and region selection, recording controls, countdown, format/FPS/quality settings, and output save/copy actions. Native Windows/macOS frame grabbers and higher milestones remain in progress.
 
 - [x] M1 — Core capture + encode engine (region/window/screen → MP4/WebM)
 - [x] M2 — GIF/animated-WebP export (two-pass palette) + trim
-- [ ] M3 — Desktop UI (source picker, recording HUD, countdown, cursor/click effects)
+- [x] M3 — Desktop UI (source picker, recording HUD, countdown, cursor/click effects)
 - [ ] M4 — CLI + JSON presets shared with GUI
 - [ ] M5 — Optional local-AI auto-title/caption
 - [ ] M6 — Packaging & CI (Windows zip/MSIX, macOS .app/.dmg)
