@@ -1,6 +1,7 @@
 using ScreenCatch.App.Services;
 using ScreenCatch.App.ViewModels;
 using ScreenCatch.Core.Capture;
+using ScreenCatch.Core.Presets;
 using ScreenCatch.Core.Recording;
 
 namespace ScreenCatch.App.Tests;
@@ -87,6 +88,65 @@ public sealed class RecordingViewModelTests
         Assert.True(viewModel.HasOutput);
         Assert.Equal("Ready to preview", viewModel.StatusText);
         Assert.Equal(RecordingSessionState.Completed, viewModel.SessionState);
+    }
+
+    [Fact]
+    public async Task ApplyPreset_UsesTheSameSettingsThatTheViewModelExports()
+    {
+        await using var viewModel = new RecordingViewModel(
+            new FakeRecordingSession(),
+            new ImmediateCountdown(),
+            () => "/tmp/demo.mp4");
+        var preset = new RecordingPreset(
+            "shared",
+            CaptureSourceKind.Region,
+            FramesPerSecond: 15,
+            Format: VideoOutputFormat.WebM,
+            Quality: 36,
+            Region: new CaptureRect(5, 6, 640, 360),
+            Audio: PresetAudioMode.None);
+
+        viewModel.ApplyPreset(preset);
+        var exported = viewModel.CreatePreset("gui-copy");
+
+        Assert.Equal("gui-copy", exported.Name);
+        Assert.Equal(preset.Source, exported.Source);
+        Assert.Equal(preset.FramesPerSecond, exported.FramesPerSecond);
+        Assert.Equal(preset.Format, exported.Format);
+        Assert.Equal(preset.Quality, exported.Quality);
+        Assert.Equal(preset.Region, exported.Region);
+    }
+
+    [Fact]
+    public async Task SaveAndLoadPresetAsync_RoundTripsThroughTheSharedStore()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"screencatch-vm-presets-{Guid.NewGuid():N}");
+        try
+        {
+            var store = new JsonPresetStore(directory);
+            await using var viewModel = new RecordingViewModel(
+                new FakeRecordingSession(),
+                new ImmediateCountdown(),
+                () => "/tmp/demo.mp4",
+                store);
+            viewModel.SelectedSource = CaptureSourceKind.Region;
+            viewModel.SetRegion(new CaptureRect(7, 8, 800, 450));
+            viewModel.FramesPerSecond = 12;
+
+            await viewModel.SavePresetAsync("shared");
+            viewModel.FramesPerSecond = 60;
+            await viewModel.LoadPresetAsync("shared");
+
+            Assert.Equal(12, viewModel.FramesPerSecond);
+            Assert.Equal(new CaptureRect(7, 8, 800, 450), viewModel.CreatePreset("loaded").Region);
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
     }
 
     private sealed class ImmediateCountdown : ICountdownService

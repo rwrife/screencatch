@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Globalization;
 
 namespace ScreenCatch.Core.Recording;
@@ -62,6 +63,11 @@ public sealed class FfmpegVideoEncoder : IVideoEncoder
         {
             return VideoEncodeResult.Failure(
                 new VideoEncodeError(VideoEncodeErrorCode.Canceled, "Encoding was canceled."));
+        }
+        catch (Win32Exception ex)
+        {
+            return VideoEncodeResult.Failure(
+                new VideoEncodeError(VideoEncodeErrorCode.ToolUnavailable, ex.Message));
         }
         catch (IOException ex)
         {
