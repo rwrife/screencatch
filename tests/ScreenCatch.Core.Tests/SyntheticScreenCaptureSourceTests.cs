@@ -38,6 +38,24 @@ public sealed class SyntheticScreenCaptureSourceTests
     }
 
     [Fact]
+    public async Task StartAsync_DoesNotPreallocateAnUnboundedFrameBuffer()
+    {
+        var topology = CaptureTopology.CreateDefaultForTests();
+        await using var source = new SyntheticScreenCaptureSource(new SyntheticFrameProvider(topology));
+        var request = new CaptureRequest(
+            new RegionCaptureDescriptor(new CaptureRect(0, 0, 1, 1)),
+            targetFps: 120,
+            maxFrames: int.MaxValue);
+
+        await source.StartAsync(request);
+        await Task.Delay(20);
+        var frames = await source.StopAsync();
+
+        Assert.NotEmpty(frames);
+        Assert.True(frames.Count < 100);
+    }
+
+    [Fact]
     public async Task CancelAsync_StopsCaptureEarly()
     {
         var topology = CaptureTopology.CreateDefaultForTests();

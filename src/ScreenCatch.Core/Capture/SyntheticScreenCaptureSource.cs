@@ -38,7 +38,7 @@ public class SyntheticScreenCaptureSource : IScreenCaptureSource
                 throw new InvalidOperationException("Capture is already running.");
             }
 
-            _capturedFrames = new List<CaptureFrame>(capacity: request.MaxFrames);
+            _capturedFrames = new List<CaptureFrame>(capacity: Math.Min(request.MaxFrames, 1024));
             _backgroundFailure = null;
             _stopRequested = false;
             IsCapturing = true;

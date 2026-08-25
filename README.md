@@ -62,7 +62,19 @@ screencatch gif --in demo.mp4 --start 00:00:02 --end 00:00:08 --fps 12 --out cli
 
 # Use a saved preset
 screencatch record --preset "issue-repro" --out repro.mp4
+
+# Save/list a preset shared with the desktop app
+screencatch preset save issue-repro --source region --rect 100,100,960,540 --fps 15 --format mp4
+screencatch preset list --json
 ```
+
+`record` runs until Ctrl+C unless `--duration SECONDS` is supplied. Every verb
+supports `--json` for machine-readable output. Script-friendly exit codes are:
+`0` success, `2` usage, `3` missing input, `4` FFmpeg/ffprobe unavailable,
+`5` operation failure, and `130` cancellation. Named presets are stored as JSON
+under `%APPDATA%\\screencatch\\presets` on Windows and
+`~/Library/Application Support/screencatch/presets` on macOS; the CLI and
+Avalonia view model use the same `IPresetStore` contract.
 
 ## Local-AI integration (optional, off by default)
 
@@ -74,12 +86,12 @@ ScreenCatch can *optionally* use a **local** tiny model to suggest an **auto-tit
 
 ## Current status / milestones
 
-🚧 **In active implementation.** The UI-free core covers capture, MP4/WebM encoding, optimized two-pass GIF/animated-WebP export, output-size estimation, stream-copy/frame-accurate trimming, and cursor/click compositing. The shared Avalonia desktop app now provides source and region selection, recording controls, countdown, format/FPS/quality settings, and output save/copy actions. Native Windows/macOS frame grabbers and higher milestones remain in progress.
+🚧 **In active implementation.** The UI-free core covers capture, MP4/WebM encoding, optimized two-pass GIF/animated-WebP export, output-size estimation, stream-copy/frame-accurate trimming, cursor/click compositing, and shared JSON presets. The headless CLI now provides record/GIF/trim/probe/preset verbs with stable JSON output, while the Avalonia desktop app provides source and region selection, recording controls, countdown, format/FPS/quality settings, and output save/copy actions. Native Windows/macOS frame grabbers and higher milestones remain in progress.
 
 - [x] M1 — Core capture + encode engine (region/window/screen → MP4/WebM)
 - [x] M2 — GIF/animated-WebP export (two-pass palette) + trim
 - [x] M3 — Desktop UI (source picker, recording HUD, countdown, cursor/click effects)
-- [ ] M4 — CLI + JSON presets shared with GUI
+- [x] M4 — CLI + JSON presets shared with GUI
 - [ ] M5 — Optional local-AI auto-title/caption
 - [ ] M6 — Packaging & CI (Windows zip/MSIX, macOS .app/.dmg)
 

@@ -2,6 +2,7 @@ using System.Windows.Input;
 using ScreenCatch.App.Services;
 using ScreenCatch.Core.Capture;
 using ScreenCatch.Core.Cursor;
+using ScreenCatch.Core.Presets;
 using ScreenCatch.Core.Recording;
 
 namespace ScreenCatch.App.ViewModels;
@@ -11,6 +12,7 @@ public sealed class RecordingViewModel : ViewModelBase, IAsyncDisposable
     private readonly IRecordingSession _session;
     private readonly ICountdownService _countdown;
     private readonly Func<string> _outputPathFactory;
+    private readonly IPresetStore _presetStore;
     private readonly CancellationTokenSource _lifetime = new();
 
     private CaptureSourceKind _selectedSource = CaptureSourceKind.Screen;
@@ -36,11 +38,13 @@ public sealed class RecordingViewModel : ViewModelBase, IAsyncDisposable
     public RecordingViewModel(
         IRecordingSession session,
         ICountdownService countdown,
-        Func<string> outputPathFactory)
+        Func<string> outputPathFactory,
+        IPresetStore? presetStore = null)
     {
         _session = session ?? throw new ArgumentNullException(nameof(session));
         _countdown = countdown ?? throw new ArgumentNullException(nameof(countdown));
         _outputPathFactory = outputPathFactory ?? throw new ArgumentNullException(nameof(outputPathFactory));
+        _presetStore = presetStore ?? new JsonPresetStore();
         _sessionState = session.State;
         _session.Progress += OnSessionProgress;
 
@@ -337,6 +341,55 @@ public sealed class RecordingViewModel : ViewModelBase, IAsyncDisposable
         SelectedSource = CaptureSourceKind.Region;
         StatusText = $"Region selected: {region.Width} × {region.Height}";
     }
+
+    public void ApplyPreset(RecordingPreset preset)
+    {
+        ArgumentNullException.ThrowIfNull(preset);
+        preset.Validate();
+
+        SelectedSource = preset.Source;
+        FramesPerSecond = preset.FramesPerSecond;
+        SelectedFormat = preset.Format;
+        Quality = preset.Quality;
+        MonitorId = preset.MonitorId ?? MonitorId;
+        WindowTitle = preset.WindowTitle ?? WindowTitle;
+        if (preset.Region is { } region)
+        {
+            RegionX = region.X;
+            RegionY = region.Y;
+            RegionWidth = region.Width;
+            RegionHeight = region.Height;
+        }
+    }
+
+    public RecordingPreset CreatePreset(string name)
+    {
+        CaptureRect? region = SelectedSource == CaptureSourceKind.Region
+            ? new CaptureRect(RegionX, RegionY, RegionWidth, RegionHeight)
+            : null;
+        return new RecordingPreset(
+            name,
+            SelectedSource,
+            FramesPerSecond,
+            SelectedFormat,
+            Quality,
+            region,
+            SelectedSource == CaptureSourceKind.Monitor ? MonitorId : null,
+            SelectedSource == CaptureSourceKind.Window ? WindowTitle : null);
+    }
+
+    public Task SavePresetAsync(string name, CancellationToken cancellationToken = default) =>
+        _presetStore.SaveAsync(CreatePreset(name), cancellationToken);
+
+    public async Task LoadPresetAsync(string name, CancellationToken cancellationToken = default)
+    {
+        var preset = await _presetStore.LoadAsync(name, cancellationToken)
+            ?? throw new FileNotFoundException($"Preset '{name}' was not found.");
+        ApplyPreset(preset);
+    }
+
+    public Task<IReadOnlyList<string>> ListPresetsAsync(CancellationToken cancellationToken = default) =>
+        _presetStore.ListAsync(cancellationToken);
 
     public async ValueTask DisposeAsync()
     {

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace ScreenCatch.Core.Capture;
 
 /// <summary>
@@ -5,6 +7,7 @@ namespace ScreenCatch.Core.Capture;
 /// </summary>
 public readonly record struct CaptureRect
 {
+    [JsonConstructor]
     public CaptureRect(int x, int y, int width, int height)
     {
         if (width <= 0)
