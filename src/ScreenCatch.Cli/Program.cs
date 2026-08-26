@@ -13,7 +13,7 @@ public static class Program
             var invocation = CliParser.Parse(args);
             var ffmpegPath = invocation.Get("ffmpeg") ?? "ffmpeg";
             var ffprobePath = invocation.Get("ffprobe") ?? "ffprobe";
-            var application = new CliApplication(
+            using var application = new CliApplication(
                 Console.Out,
                 ffmpegEngine: new Core.Recording.FfmpegProcessEngine(ffmpegPath),
                 mediaProbe: new FfprobeMediaProbe(ffprobePath));

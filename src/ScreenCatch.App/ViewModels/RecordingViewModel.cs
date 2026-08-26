@@ -1,5 +1,6 @@
 using System.Windows.Input;
 using ScreenCatch.App.Services;
+using ScreenCatch.Core.Ai;
 using ScreenCatch.Core.Capture;
 using ScreenCatch.Core.Cursor;
 using ScreenCatch.Core.Presets;
@@ -13,6 +14,8 @@ public sealed class RecordingViewModel : ViewModelBase, IAsyncDisposable
     private readonly ICountdownService _countdown;
     private readonly Func<string> _outputPathFactory;
     private readonly IPresetStore _presetStore;
+    private readonly IRecordingAiService _aiService;
+    private readonly bool _ownsAiService;
     private readonly CancellationTokenSource _lifetime = new();
 
     private CaptureSourceKind _selectedSource = CaptureSourceKind.Screen;
@@ -33,18 +36,28 @@ public sealed class RecordingViewModel : ViewModelBase, IAsyncDisposable
     private string _statusText = "Ready to record";
     private string? _outputPath;
     private TimeSpan _elapsed;
+    private bool _isAiEnabled;
+    private string _aiEndpoint = "http://localhost:11434/v1/";
+    private string _aiModel = "qwen2.5:3b";
+    private string? _suggestedTitle;
+    private string? _suggestedCaption;
+    private bool _aiUsedFallback;
+    private DateTimeOffset _recordedAtUtc;
     private bool _disposed;
 
     public RecordingViewModel(
         IRecordingSession session,
         ICountdownService countdown,
         Func<string> outputPathFactory,
-        IPresetStore? presetStore = null)
+        IPresetStore? presetStore = null,
+        IRecordingAiService? aiService = null)
     {
         _session = session ?? throw new ArgumentNullException(nameof(session));
         _countdown = countdown ?? throw new ArgumentNullException(nameof(countdown));
         _outputPathFactory = outputPathFactory ?? throw new ArgumentNullException(nameof(outputPathFactory));
         _presetStore = presetStore ?? new JsonPresetStore();
+        _ownsAiService = aiService is null;
+        _aiService = aiService ?? new LocalRecordingAiService();
         _sessionState = session.State;
         _session.Progress += OnSessionProgress;
 
@@ -156,6 +169,50 @@ public sealed class RecordingViewModel : ViewModelBase, IAsyncDisposable
         set => SetProperty(ref _clickEffectsEnabled, value);
     }
 
+    public bool IsAiEnabled
+    {
+        get => _isAiEnabled;
+        set => SetProperty(ref _isAiEnabled, value);
+    }
+
+    public string AiEndpoint
+    {
+        get => _aiEndpoint;
+        set => SetProperty(ref _aiEndpoint, value);
+    }
+
+    public string AiModel
+    {
+        get => _aiModel;
+        set => SetProperty(ref _aiModel, value);
+    }
+
+    public string? SuggestedTitle
+    {
+        get => _suggestedTitle;
+        private set
+        {
+            if (SetProperty(ref _suggestedTitle, value))
+            {
+                OnPropertyChanged(nameof(HasAiSuggestion));
+            }
+        }
+    }
+
+    public string? SuggestedCaption
+    {
+        get => _suggestedCaption;
+        private set => SetProperty(ref _suggestedCaption, value);
+    }
+
+    public bool AiUsedFallback
+    {
+        get => _aiUsedFallback;
+        private set => SetProperty(ref _aiUsedFallback, value);
+    }
+
+    public bool HasAiSuggestion => !string.IsNullOrWhiteSpace(SuggestedTitle);
+
     public RecordingSessionState SessionState
     {
         get => _sessionState;
@@ -237,6 +294,9 @@ public sealed class RecordingViewModel : ViewModelBase, IAsyncDisposable
 
         SetBusy(true);
         OutputPath = null;
+        SuggestedTitle = null;
+        SuggestedCaption = null;
+        AiUsedFallback = false;
         Elapsed = TimeSpan.Zero;
         try
         {
@@ -246,6 +306,7 @@ public sealed class RecordingViewModel : ViewModelBase, IAsyncDisposable
                 _lifetime.Token);
 
             StatusText = "Starting capture…";
+            _recordedAtUtc = DateTimeOffset.UtcNow;
             await _session.StartAsync(BuildRequest(), _lifetime.Token);
             SessionState = _session.State;
             StatusText = "Recording";
@@ -302,6 +363,23 @@ public sealed class RecordingViewModel : ViewModelBase, IAsyncDisposable
             if (result.EncodeResult.IsSuccess)
             {
                 OutputPath = result.EncodeResult.OutputPath;
+                if (IsAiEnabled)
+                {
+                    var suggestion = await _aiService.SuggestAsync(
+                        new RecordingAiRequest(
+                            _recordedAtUtc,
+                            TimeSpan.FromSeconds(result.CapturedFrames.Count / (double)FramesPerSecond),
+                            SelectedSource),
+                        new RecordingAiOptions(
+                            Enabled: true,
+                            Endpoint: AiEndpoint,
+                            Model: AiModel),
+                        _lifetime.Token);
+                    SuggestedTitle = suggestion.Title;
+                    SuggestedCaption = suggestion.Caption;
+                    AiUsedFallback = suggestion.IsFallback;
+                }
+
                 StatusText = "Ready to preview";
             }
             else
@@ -402,6 +480,11 @@ public sealed class RecordingViewModel : ViewModelBase, IAsyncDisposable
         _session.Progress -= OnSessionProgress;
         _lifetime.Cancel();
         await _session.DisposeAsync();
+        if (_ownsAiService && _aiService is IDisposable disposableAiService)
+        {
+            disposableAiService.Dispose();
+        }
+
         _lifetime.Dispose();
     }
 

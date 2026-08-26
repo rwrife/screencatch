@@ -60,6 +60,11 @@ screencatch record --source window --title "My App" --audio mic --format webm --
 # Trim an existing capture and re-export a GIF
 screencatch gif --in demo.mp4 --start 00:00:02 --end 00:00:08 --fps 12 --out clip.gif
 
+# Use optional local AI for a suggested title/caption (loopback only; off by default)
+screencatch record --source region --rect 100,100,960,540 --format mp4 \
+  --duration 10 --out demo.mp4 --ai \
+  --ai-endpoint http://localhost:11434/v1/ --ai-model qwen2.5:3b --json
+
 # Use a saved preset
 screencatch record --preset "issue-repro" --out repro.mp4
 
@@ -78,11 +83,12 @@ Avalonia view model use the same `IPresetStore` contract.
 
 ## Local-AI integration (optional, off by default)
 
-ScreenCatch can *optionally* use a **local** tiny model to suggest an **auto-title** or short **caption** for a recording (handy for naming files or drafting an issue note). It talks to an **OpenAI-compatible localhost endpoint** (e.g. **Ollama** or **llama.cpp**) using small models in the **Llama 3.2 / Qwen2.5 / Phi-3-mini / MiniCPM-V** class. It:
+ScreenCatch can *optionally* use a **local** tiny model to suggest an **auto-title** or short **caption** for a recording (handy for naming files or drafting an issue note). It talks to an **OpenAI-compatible localhost endpoint** (e.g. **Ollama** or **llama.cpp**) using small models in the **Llama 3.2 / Qwen2.5 / Phi-3-mini / MiniCPM-V** class. Enable it with the desktop **Local AI** checkbox or the CLI `--ai` flag; both are off by default. It:
 
-- is **disabled by default** and only ever contacts `localhost`;
-- performs a **reachability probe** and **gracefully falls back** to timestamp/preset-based naming when no model is present;
-- sends only minimal metadata (and, for vision models, optionally a single sampled frame) — **never uploads to any cloud**.
+- is **disabled by default** and rejects any endpoint that is not HTTP(S) loopback (`localhost`, `127.0.0.1`, or `::1`);
+- probes `<endpoint>/models` before requesting `<endpoint>/chat/completions` and **gracefully falls back** to timestamp/preset-based naming when no model is present or a response is invalid;
+- sends only recording time, duration, source type, optional preset name, and (for vision models) at most one optional inline PNG frame — **never uploads to any cloud**;
+- returns `title`, `caption`, and `aiFallback` in CLI JSON output when `--ai` is enabled.
 
 ## Current status / milestones
 
@@ -92,7 +98,7 @@ ScreenCatch can *optionally* use a **local** tiny model to suggest an **auto-tit
 - [x] M2 — GIF/animated-WebP export (two-pass palette) + trim
 - [x] M3 — Desktop UI (source picker, recording HUD, countdown, cursor/click effects)
 - [x] M4 — CLI + JSON presets shared with GUI
-- [ ] M5 — Optional local-AI auto-title/caption
+- [x] M5 — Optional local-AI auto-title/caption
 - [ ] M6 — Packaging & CI (Windows zip/MSIX, macOS .app/.dmg)
 
 See `PLAN.md` for scope, architecture, and non-goals.
