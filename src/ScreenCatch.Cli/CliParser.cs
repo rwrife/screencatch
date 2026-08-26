@@ -43,13 +43,14 @@ public static class CliParser
 
     private static readonly HashSet<string> BooleanOptions = new(StringComparer.OrdinalIgnoreCase)
     {
-        "json", "frame-accurate",
+        "json", "frame-accurate", "ai",
     };
 
     private static readonly HashSet<string> ValueOptions = new(StringComparer.OrdinalIgnoreCase)
     {
         "source", "rect", "title", "monitor", "fps", "format", "quality", "audio",
         "out", "in", "start", "end", "duration", "width", "preset", "ffmpeg", "ffprobe",
+        "ai-endpoint", "ai-model",
     };
 
     public static CliInvocation Parse(IReadOnlyList<string> arguments)
@@ -144,7 +145,7 @@ public static class CliParser
 
         var allowed = verb switch
         {
-            "record" => CreateSet("source", "rect", "title", "monitor", "fps", "format", "quality", "audio", "out", "duration", "preset", "ffmpeg", "json"),
+            "record" => CreateSet("source", "rect", "title", "monitor", "fps", "format", "quality", "audio", "out", "duration", "preset", "ffmpeg", "json", "ai", "ai-endpoint", "ai-model"),
             "gif" => CreateSet("in", "out", "start", "end", "fps", "format", "width", "ffmpeg", "ffprobe", "json"),
             "trim" => CreateSet("in", "out", "start", "end", "frame-accurate", "ffmpeg", "json"),
             "probe" => CreateSet("in", "ffprobe", "json"),

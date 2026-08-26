@@ -72,6 +72,22 @@
               </Grid>
             </StackPanel>
           </Border>
+
+          <Border Padding="18" CornerRadius="12" Background="#171D29" BorderBrush="#293247" BorderThickness="1">
+            <StackPanel Spacing="12">
+              <TextBlock Text="Local AI (optional)" FontSize="18" FontWeight="SemiBold" />
+              <CheckBox Content="Suggest a title and caption after recording"
+                        IsChecked="{Binding IsAiEnabled}" />
+              <TextBlock Text="Off by default. Only localhost/loopback endpoints are accepted."
+                         TextWrapping="Wrap" Foreground="#A9B3C7" />
+              <StackPanel IsVisible="{Binding IsAiEnabled}" Spacing="8">
+                <TextBlock Text="OpenAI-compatible endpoint" Foreground="#A9B3C7" />
+                <TextBox Text="{Binding AiEndpoint}" Watermark="http://localhost:11434/v1/" />
+                <TextBlock Text="Model" Foreground="#A9B3C7" />
+                <TextBox Text="{Binding AiModel}" Watermark="qwen2.5:3b" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
         </StackPanel>
       </ScrollViewer>
 
@@ -94,9 +110,14 @@
 
         <Border Grid.Row="1" Padding="24" CornerRadius="12" Background="#171D29" BorderBrush="#293247" BorderThickness="1">
           <Grid RowDefinitions="Auto,*,Auto" RowSpacing="16">
-            <StackPanel>
+            <StackPanel Spacing="6">
               <TextBlock Text="Output preview" FontSize="18" FontWeight="SemiBold" />
               <TextBlock Text="{Binding OutputFileName}" Foreground="#A9B3C7" />
+              <StackPanel IsVisible="{Binding HasAiSuggestion}" Spacing="3" Margin="0,8,0,0">
+                <TextBlock Text="Suggested title" Foreground="#6EA8FE" FontWeight="SemiBold" />
+                <TextBlock Text="{Binding SuggestedTitle}" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding SuggestedCaption}" TextWrapping="Wrap" Foreground="#A9B3C7" />
+              </StackPanel>
             </StackPanel>
             <Border Grid.Row="1" CornerRadius="10" Background="#0C1017" BorderBrush="#293247" BorderThickness="1">
               <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10">

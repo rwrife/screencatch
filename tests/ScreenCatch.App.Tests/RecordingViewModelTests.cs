@@ -1,5 +1,6 @@
 using ScreenCatch.App.Services;
 using ScreenCatch.App.ViewModels;
+using ScreenCatch.Core.Ai;
 using ScreenCatch.Core.Capture;
 using ScreenCatch.Core.Presets;
 using ScreenCatch.Core.Recording;
@@ -91,6 +92,30 @@ public sealed class RecordingViewModelTests
     }
 
     [Fact]
+    public async Task StopAsync_WhenAiIsOptedIn_ExposesSuggestedTitleAndCaption()
+    {
+        var aiService = new FakeAiService();
+        await using var viewModel = new RecordingViewModel(
+            new FakeRecordingSession(),
+            new ImmediateCountdown(),
+            () => "/tmp/demo.mp4",
+            aiService: aiService);
+        Assert.False(viewModel.IsAiEnabled);
+        viewModel.IsAiEnabled = true;
+        viewModel.AiEndpoint = "http://localhost:1234/v1/";
+        viewModel.AiModel = "tiny-local";
+
+        await viewModel.StartAsync();
+        await viewModel.StopAsync();
+
+        Assert.NotNull(aiService.Options);
+        Assert.True(aiService.Options!.Enabled);
+        Assert.Equal("Local title", viewModel.SuggestedTitle);
+        Assert.Equal("Local caption", viewModel.SuggestedCaption);
+        Assert.False(viewModel.AiUsedFallback);
+    }
+
+    [Fact]
     public async Task ApplyPreset_UsesTheSameSettingsThatTheViewModelExports()
     {
         await using var viewModel = new RecordingViewModel(
@@ -146,6 +171,23 @@ public sealed class RecordingViewModelTests
             {
                 Directory.Delete(directory, recursive: true);
             }
+        }
+    }
+
+    private sealed class FakeAiService : IRecordingAiService
+    {
+        public RecordingAiOptions? Options { get; private set; }
+
+        public Task<bool> ProbeAsync(RecordingAiOptions options, CancellationToken cancellationToken = default) =>
+            Task.FromResult(true);
+
+        public Task<RecordingAiSuggestion> SuggestAsync(
+            RecordingAiRequest request,
+            RecordingAiOptions options,
+            CancellationToken cancellationToken = default)
+        {
+            Options = options;
+            return Task.FromResult(new RecordingAiSuggestion("Local title", "Local caption", IsFallback: false));
         }
     }
 

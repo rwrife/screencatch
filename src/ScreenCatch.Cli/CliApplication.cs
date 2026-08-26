@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using ScreenCatch.Core.Ai;
 using ScreenCatch.Core.Capture;
 using ScreenCatch.Core.Editing;
 using ScreenCatch.Core.Export;
@@ -18,7 +19,7 @@ public enum CliExitCode
     Canceled = 130,
 }
 
-public sealed class CliApplication
+public sealed class CliApplication : IDisposable
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -31,19 +32,25 @@ public sealed class CliApplication
     private readonly IFfmpegEngine _ffmpegEngine;
     private readonly IMediaProbe _mediaProbe;
     private readonly Func<IScreenCaptureSource> _captureSourceFactory;
+    private readonly IRecordingAiService _aiService;
+    private readonly bool _ownsAiService;
+    private bool _disposed;
 
     public CliApplication(
         TextWriter output,
         IPresetStore? presetStore = null,
         IFfmpegEngine? ffmpegEngine = null,
         IMediaProbe? mediaProbe = null,
-        Func<IScreenCaptureSource>? captureSourceFactory = null)
+        Func<IScreenCaptureSource>? captureSourceFactory = null,
+        IRecordingAiService? aiService = null)
     {
         _output = output ?? throw new ArgumentNullException(nameof(output));
         _presetStore = presetStore ?? new JsonPresetStore();
         _ffmpegEngine = ffmpegEngine ?? new FfmpegProcessEngine();
         _mediaProbe = mediaProbe ?? new FfprobeMediaProbe();
         _captureSourceFactory = captureSourceFactory ?? (() => ScreenCaptureSourceFactory.CreateDefault());
+        _ownsAiService = aiService is null;
+        _aiService = aiService ?? new LocalRecordingAiService();
     }
 
     public Task<CliExitCode> RunAsync(CliInvocation invocation, CancellationToken cancellationToken = default)
@@ -97,6 +104,7 @@ public sealed class CliApplication
         await using var session = new RecordingSession(
             _captureSourceFactory(),
             new FfmpegVideoEncoder(_ffmpegEngine));
+        var recordedAtUtc = DateTimeOffset.UtcNow;
         try
         {
             await session.StartAsync(
@@ -115,7 +123,28 @@ public sealed class CliApplication
                     exitCode).ConfigureAwait(false);
             }
 
-            return await WriteSuccessAsync(invocation, "record", result.EncodeResult.OutputPath).ConfigureAwait(false);
+            RecordingAiSuggestion? suggestion = null;
+            if (invocation.Has("ai"))
+            {
+                var aiOptions = new RecordingAiOptions(
+                    Enabled: true,
+                    Endpoint: invocation.Get("ai-endpoint") ?? "http://localhost:11434/v1/",
+                    Model: invocation.Get("ai-model") ?? "qwen2.5:3b");
+                suggestion = await _aiService.SuggestAsync(
+                    new RecordingAiRequest(
+                        recordedAtUtc,
+                        TimeSpan.FromSeconds(result.CapturedFrames.Count / (double)settings.FramesPerSecond),
+                        settings.Source,
+                        saved?.Name),
+                    aiOptions,
+                    cancellationToken).ConfigureAwait(false);
+            }
+
+            return await WriteSuccessAsync(
+                invocation,
+                "record",
+                result.EncodeResult.OutputPath,
+                suggestion: suggestion).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -291,6 +320,10 @@ public sealed class CliApplication
               --source, --rect X,Y,W,H, --title, --monitor, --fps, --format,
               --quality, --audio none|mic|system|both, --preset NAME, --json
 
+            Optional local AI for record (off by default):
+              --ai [--ai-endpoint http://localhost:11434/v1/] [--ai-model MODEL]
+              Only loopback endpoints are accepted; failures use a timestamp fallback.
+
             Exit codes: 0 success, 2 usage, 3 missing input, 4 tool unavailable,
                         5 operation failed, 130 canceled.
             """;
@@ -384,15 +417,30 @@ public sealed class CliApplication
         CliInvocation invocation,
         string command,
         string? outputPath = null,
-        RecordingPreset? preset = null)
+        RecordingPreset? preset = null,
+        RecordingAiSuggestion? suggestion = null)
     {
         if (invocation.Json)
         {
-            await WriteJsonAsync(new { success = true, command, outputPath, preset }).ConfigureAwait(false);
+            await WriteJsonAsync(new
+            {
+                success = true,
+                command,
+                outputPath,
+                preset,
+                title = suggestion?.Title,
+                caption = suggestion?.Caption,
+                aiFallback = suggestion?.IsFallback,
+            }).ConfigureAwait(false);
         }
         else
         {
             await _output.WriteLineAsync(outputPath ?? $"{command}: ok").ConfigureAwait(false);
+            if (suggestion is not null)
+            {
+                await _output.WriteLineAsync($"Suggested title: {suggestion.Title}").ConfigureAwait(false);
+                await _output.WriteLineAsync($"Caption: {suggestion.Caption}").ConfigureAwait(false);
+            }
         }
 
         return CliExitCode.Success;
@@ -414,6 +462,20 @@ public sealed class CliApplication
         }
 
         return exitCode;
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        if (_ownsAiService && _aiService is IDisposable disposableAiService)
+        {
+            disposableAiService.Dispose();
+        }
     }
 
     private Task WriteJsonAsync<T>(T value) => _output.WriteLineAsync(JsonSerializer.Serialize(value, JsonOptions));
