@@ -28,7 +28,10 @@ jobs:
         run: choco install ffmpeg --yes --no-progress
       - name: Install FFmpeg (macOS)
         if: runner.os == 'macOS'
-        run: brew install ffmpeg
+        shell: bash
+        run: |
+          ./scripts/install-ffmpeg-macos.sh "$RUNNER_TEMP/ffmpeg-tools"
+          echo "$RUNNER_TEMP/ffmpeg-tools" >> "$GITHUB_PATH"
       - name: Restore
         run: dotnet restore ScreenCatch.sln
       - name: Build

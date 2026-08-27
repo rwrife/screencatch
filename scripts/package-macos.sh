@@ -48,51 +48,7 @@ done < <(find "$X64" -type f -print0)
 mkdir -p "$MACOS"
 ditto "$UNIVERSAL" "$MACOS"
 
-download_verified() {
-  local url="$1"
-  local expected_sha256="$2"
-  local destination="$3"
-  curl --fail --location --retry 3 "$url" --output "$destination"
-  local actual_sha256
-  actual_sha256="$(shasum -a 256 "$destination" | cut -d ' ' -f 1)"
-  if [[ "$actual_sha256" != "$expected_sha256" ]]; then
-    echo "Checksum mismatch for $url: expected $expected_sha256, got $actual_sha256" >&2
-    exit 1
-  fi
-}
-
-for tool in ffmpeg ffprobe; do
-  if [[ "$tool" == "ffmpeg" ]]; then
-    x64_url="https://evermeet.cx/ffmpeg/ffmpeg-8.1.2.zip"
-    x64_sha256="e91df72a1ee7c26606f90dd2dd4dcccc6a75140ff9ea6fdd50faae828b82ba69"
-    arm64_url="https://github.com/charlienovember/videobot-ffmpeg/releases/download/ffmpeg-n8.1.2/ffmpeg-n8.1.2-macos-arm64.zip"
-    arm64_sha256="7c3f9560d1d018746a3fbca4f89d597ad4d45739abc3efc45f6360c9add3e614"
-  else
-    x64_url="https://evermeet.cx/ffmpeg/ffprobe-8.1.2.zip"
-    x64_sha256="399b93f0b9862f69767afa343e90c2f48d7e7958cadbb6deb76a012d0e3b7ce3"
-    arm64_url="https://github.com/charlienovember/videobot-ffmpeg/releases/download/ffmpeg-n8.1.2/ffprobe-n8.1.2-macos-arm64.zip"
-    arm64_sha256="d86c980604ab0d8c40b3c17c9c3fcb388fb341ea4bd470ab28f9d96c5f3fb812"
-  fi
-  x64_archive="$WORK/$tool-x64.zip"
-  arm64_archive="$WORK/$tool-arm64.zip"
-  x64_extract="$WORK/$tool-x64"
-  arm64_extract="$WORK/$tool-arm64"
-  mkdir -p "$x64_extract" "$arm64_extract"
-  download_verified "$x64_url" "$x64_sha256" "$x64_archive"
-  download_verified "$arm64_url" "$arm64_sha256" "$arm64_archive"
-  ditto -x -k "$x64_archive" "$x64_extract"
-  ditto -x -k "$arm64_archive" "$arm64_extract"
-  x64_binary="$(find "$x64_extract" -type f -name "$tool" -print -quit)"
-  arm64_binary="$(find "$arm64_extract" -type f -name "$tool" -print -quit)"
-  if [[ -z "$x64_binary" || -z "$arm64_binary" ]]; then
-    echo "Downloaded archives did not contain both $tool architectures" >&2
-    exit 1
-  fi
-  lipo -create "$x64_binary" "$arm64_binary" -output "$TOOLS/$tool"
-  lipo -archs "$TOOLS/$tool" | grep -q 'x86_64'
-  lipo -archs "$TOOLS/$tool" | grep -q 'arm64'
-  chmod 755 "$TOOLS/$tool"
-done
+"$ROOT/scripts/install-ffmpeg-macos.sh" "$TOOLS" universal
 
 mkdir -p "$CONTENTS/Resources"
 cat > "$CONTENTS/Info.plist" <<'PLIST'
