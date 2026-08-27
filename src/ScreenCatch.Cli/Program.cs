@@ -11,8 +11,8 @@ public static class Program
         try
         {
             var invocation = CliParser.Parse(args);
-            var ffmpegPath = invocation.Get("ffmpeg") ?? "ffmpeg";
-            var ffprobePath = invocation.Get("ffprobe") ?? "ffprobe";
+            var ffmpegPath = invocation.Get("ffmpeg") ?? Core.Recording.MediaToolLocator.Resolve("ffmpeg");
+            var ffprobePath = invocation.Get("ffprobe") ?? Core.Recording.MediaToolLocator.Resolve("ffprobe");
             using var application = new CliApplication(
                 Console.Out,
                 ffmpegEngine: new Core.Recording.FfmpegProcessEngine(ffmpegPath),

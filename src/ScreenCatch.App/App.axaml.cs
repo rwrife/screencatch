@@ -19,7 +19,7 @@ public sealed partial class App : Application
         {
             var session = new RecordingSession(
                 ScreenCaptureSourceFactory.CreateDefault(),
-                new FfmpegVideoEncoder(new FfmpegProcessEngine()),
+                new FfmpegVideoEncoder(new FfmpegProcessEngine(MediaToolLocator.Resolve("ffmpeg"))),
                 cursorOverlay: new CursorOverlayRenderer(),
                 cursorStateProvider: new SystemCursorStateProvider());
             var viewModel = new RecordingViewModel(

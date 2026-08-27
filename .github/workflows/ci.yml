@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Restore
+        run: dotnet restore ScreenCatch.sln
+      - name: Build
+        run: dotnet build ScreenCatch.sln --configuration Release --no-restore
+      - name: Test ScreenCatch.Core
+        run: dotnet test tests/ScreenCatch.Core.Tests/ScreenCatch.Core.Tests.csproj --configuration Release --no-build --logger "trx;LogFileName=core-tests.trx"
+      - name: Test application and CLI
+        run: dotnet test ScreenCatch.sln --configuration Release --no-build --logger "trx;LogFileName=tests.trx"
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: test-results-${{ matrix.os }}
+          path: '**/TestResults/*.trx'
+          if-no-files-found: warn
+
+  package-windows:
+    name: Package Windows
+    needs: test
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Build portable ZIP and signed MSIX
+        shell: pwsh
+        run: ./scripts/package-windows.ps1
+      - name: Upload Windows packages
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: screencatch-windows
+          path: |
+            artifacts/windows/screencatch-win-x64.zip
+            artifacts/windows/screencatch-win-x64.msix
+            artifacts/windows/screencatch-dev-signing.cer
+          if-no-files-found: error
+
+  package-macos:
+    name: Package macOS
+    needs: test
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Build universal application and DMG
+        shell: bash
+        run: ./scripts/package-macos.sh
+      - name: Upload macOS package
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: screencatch-macos
+          path: artifacts/macos/screencatch-macOS-universal.dmg
+          if-no-files-found: error
