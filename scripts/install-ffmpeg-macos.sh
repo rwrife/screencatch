@@ -36,11 +36,11 @@ install_architecture() {
     url="https://evermeet.cx/ffmpeg/ffprobe-8.1.2.zip"
     sha256="399b93f0b9862f69767afa343e90c2f48d7e7958cadbb6deb76a012d0e3b7ce3"
   elif [[ "$tool/$architecture" == "ffmpeg/arm64" ]]; then
-    url="https://github.com/charlienovember/videobot-ffmpeg/releases/download/ffmpeg-n8.1.2/ffmpeg-n8.1.2-macos-arm64.zip"
-    sha256="7c3f9560d1d018746a3fbca4f89d597ad4d45739abc3efc45f6360c9add3e614"
+    url="https://www.osxexperts.net/ffmpeg81arm.zip"
+    sha256="ebb82529562b71170807bbc6b0e7eb4f0b13af8cbb0e085bb9e8f6fe709598ad"
   else
-    url="https://github.com/charlienovember/videobot-ffmpeg/releases/download/ffmpeg-n8.1.2/ffprobe-n8.1.2-macos-arm64.zip"
-    sha256="d86c980604ab0d8c40b3c17c9c3fcb388fb341ea4bd470ab28f9d96c5f3fb812"
+    url="https://www.osxexperts.net/ffprobe81arm.zip"
+    sha256="a6640a77d38a6f0527c5b597e599cb36a3427a6931444ed80bc62542421950a1"
   fi
 
   local archive="$WORK/$tool-$architecture.zip"
@@ -75,3 +75,19 @@ for tool in ffmpeg ffprobe; do
     install_architecture "$tool" "$architecture" "$DESTINATION/$tool"
   fi
 done
+
+encoders="$("$DESTINATION/ffmpeg" -hide_banner -encoders 2>&1)"
+for encoder in libx264 libvpx-vp9 libwebp_anim; do
+  if ! grep -Eq "[[:space:]]${encoder}[[:space:]]" <<<"$encoders"; then
+    echo "Downloaded ffmpeg does not provide required encoder: $encoder" >&2
+    exit 1
+  fi
+done
+
+filters="$("$DESTINATION/ffmpeg" -hide_banner -filters 2>&1)"
+if ! grep -Eq '[[:space:]]palettegen[[:space:]]' <<<"$filters"; then
+  echo "Downloaded ffmpeg does not provide required filter: palettegen" >&2
+  exit 1
+fi
+
+"$DESTINATION/ffprobe" -hide_banner -version >/dev/null
