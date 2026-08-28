@@ -44,7 +44,7 @@ install_architecture() {
   fi
 
   local archive="$WORK/$tool-$architecture.zip"
-  local extract="$WORK/$tool-$architecture"
+  local extract="$WORK/extract-$tool-$architecture"
   mkdir -p "$extract"
   download_verified "$url" "$sha256" "$archive"
   ditto -x -k "$archive" "$extract"
