@@ -36,12 +36,34 @@ dotnet publish "$ROOT/src/ScreenCatch.App/ScreenCatch.App.csproj" \
   --output "$ARM64" -p:DebugType=None -p:DebugSymbols=false
 
 ditto "$X64" "$UNIVERSAL"
+has_architecture() {
+  local architectures="$1"
+  local expected="$2"
+  [[ " $architectures " == *" $expected "* ]]
+}
+
 while IFS= read -r -d '' x64_file; do
   relative="${x64_file#"$X64"/}"
   arm64_file="$ARM64/$relative"
   universal_file="$UNIVERSAL/$relative"
   if [[ -f "$arm64_file" ]] && file -b "$x64_file" | grep -q 'Mach-O' && file -b "$arm64_file" | grep -q 'Mach-O'; then
-    lipo -create "$x64_file" "$arm64_file" -output "$universal_file"
+    x64_architectures="$(lipo -archs "$x64_file")"
+    arm64_architectures="$(lipo -archs "$arm64_file")"
+
+    if has_architecture "$x64_architectures" x86_64 && has_architecture "$x64_architectures" arm64; then
+      continue
+    fi
+    if has_architecture "$arm64_architectures" x86_64 && has_architecture "$arm64_architectures" arm64; then
+      cp "$arm64_file" "$universal_file"
+      continue
+    fi
+    if has_architecture "$x64_architectures" x86_64 && has_architecture "$arm64_architectures" arm64; then
+      lipo -create "$x64_file" "$arm64_file" -output "$universal_file"
+      continue
+    fi
+
+    echo "Cannot create a universal binary for $relative: x64=[$x64_architectures], arm64=[$arm64_architectures]" >&2
+    exit 1
   fi
 done < <(find "$X64" -type f -print0)
 
@@ -49,6 +71,16 @@ mkdir -p "$MACOS"
 ditto "$UNIVERSAL" "$MACOS"
 
 "$ROOT/scripts/install-ffmpeg-macos.sh" "$TOOLS" universal
+
+while IFS= read -r -d '' binary; do
+  if file -b "$binary" | grep -q 'Mach-O'; then
+    architectures="$(lipo -archs "$binary")"
+    if ! has_architecture "$architectures" x86_64 || ! has_architecture "$architectures" arm64; then
+      echo "Packaged Mach-O binary is not universal: ${binary#"$MACOS"/} [$architectures]" >&2
+      exit 1
+    fi
+  fi
+done < <(find "$MACOS" -type f -print0)
 
 mkdir -p "$CONTENTS/Resources"
 cat > "$CONTENTS/Info.plist" <<'PLIST'
