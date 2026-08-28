@@ -43,6 +43,35 @@ Recording a quick demo, bug repro, or tutorial clip usually means reaching for a
 2. On first launch, grant **Screen Recording** permission (System Settings → Privacy & Security → Screen Recording) and, if recording the mic, **Microphone** permission.
 3. Pick a capture source, choose output format, and record exactly as above.
 
+### Packaging from source
+
+The GitHub Actions `CI` workflow builds and tests on both `windows-latest` and
+`macos-latest`, then uploads installable artifacts. Both packages include
+`ffmpeg` and `ffprobe` under the application's `tools` directory; ScreenCatch
+prefers those binaries and falls back to `PATH` for source builds.
+
+- **Windows:** run `./scripts/package-windows.ps1` in PowerShell on Windows.
+  It creates `artifacts/windows/screencatch-win-x64.zip`, a self-contained
+  `screencatch-win-x64.msix`, and its development signing certificate. For a
+  CI-built MSIX, import `screencatch-dev-signing.cer` into the local machine's
+  **Trusted People** store before installation. Release builds should replace
+  this ephemeral development signature with a trusted code-signing identity.
+- **macOS:** run `./scripts/package-macos.sh` on macOS. It publishes both
+  `osx-x64` and `osx-arm64`, combines their Mach-O binaries into a universal
+  app, and creates `artifacts/macos/screencatch-macOS-universal.dmg`. On first
+  launch, macOS prompts for **Screen Recording** permission and, when
+  microphone capture is used, **Microphone** permission under System Settings
+  → Privacy & Security. With no signing configuration, the script creates an
+  ad-hoc signed **development artifact**; use Finder's **Open** context-menu
+  action to approve it. For normal Gatekeeper distribution, set
+  `MACOS_CODESIGN_IDENTITY` to a Developer ID Application identity and
+  `MACOS_NOTARY_PROFILE` to an `xcrun notarytool` keychain profile; the script
+  enables the hardened runtime with the CoreCLR JIT entitlements, notarizes
+  the DMG, and staples its ticket.
+
+Packaging scripts use versioned FFmpeg/ffprobe archives and verify committed
+SHA-256 digests before including any downloaded executable.
+
 ## Example workflow / commands
 
 Headless CLI (same engine as the GUI):
@@ -99,6 +128,6 @@ ScreenCatch can *optionally* use a **local** tiny model to suggest an **auto-tit
 - [x] M3 — Desktop UI (source picker, recording HUD, countdown, cursor/click effects)
 - [x] M4 — CLI + JSON presets shared with GUI
 - [x] M5 — Optional local-AI auto-title/caption
-- [ ] M6 — Packaging & CI (Windows zip/MSIX, macOS .app/.dmg)
+- [x] M6 — Packaging & CI (Windows zip/MSIX, macOS .app/.dmg)
 
 See `PLAN.md` for scope, architecture, and non-goals.
